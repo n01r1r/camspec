@@ -1,6 +1,0 @@
-cameraName=camera
-illuminant=D65
-chartType=ColorChecker24
-targetColorSpace=linear_srgb
-M=1.07169 -0.319481 0.962915 -0.27669 1.11376 0.816087 -0.281799 -0.581905 2.4116
-wb=1.16217 0.704743 1.38777
