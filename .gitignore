@@ -1,0 +1,14 @@
+# Build directory
+build/
+
+# External dependencies (if not git submodules)
+# external/
+
+# Raw DNG files (ignore contents but keep directory)
+raw/*
+!raw/.gitkeep
+
+# IDE settings
+.vscode/
+.vs/
+*.user
