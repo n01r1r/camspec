@@ -15,3 +15,7 @@ raw/*
 
 # Reference scripts
 reference/
+
+# Profiles (ignore contents but keep directory)
+profiles/*
+!profiles/.gitkeep

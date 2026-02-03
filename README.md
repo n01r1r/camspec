@@ -1,41 +1,81 @@
-# camspec: C++ Camera Spectral Sensitivity & Color Pipeline
+# CamSpec
 
-A C++ pipeline for camera color calibration and spectral sensitivity estimation, based on the research below:
+![C++17](https://img.shields.io/badge/standard-C%2B%2B17-blue.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-> **Original Research**: [What is the Space of Spectral Sensitivity Functions for Digital Color Cameras?](https://www.gujinwei.org/research/camspec/) (WACV 2013)
+> **A C++17 Library for Camera Spectral Sensitivity Recovery**
 
-## Features
+CamSpec is a C++ library designed for spectral sensitivity recovery and camera calibration. It implements a flexible pipeline allowing users to switch between different optimization algorithms—from physics-based recovery to statistical estimation—within a unified framework. It currently supports constrained optimization (Jiang et al.) and provides a foundation for Off-Planckian illuminant estimation.
 
-- **Raw Processing**: Uses `tinydng` to load custom 16-bit CFA/Bayer and Linear DNGs.
-- **Color Calibration**: Extracts 24-patch ColorChecker values to estimate a 3x3 Color Correction Matrix (CCM) and White Balance.
-- **Profile Management**: Saves and applies calibration profiles to raw images.
-- **Interactive Tool**: built-in GUI for easy corner selection.
+## Key Features
 
-## Build & Usage
+- **C++17 Implementation**: Built with standard C++17, utilizing `std::filesystem` for cross-platform I/O and strict type safety. No legacy dependencies.
+- **Pipeline Architecture**: Decouples the solver (`Estimator`) from data processing (`Pipeline`). This structure allows researchers to plug in custom algorithms (e.g., Gray World, Off-Planckian) without modifying the core engine.
+- **Constrained Optimization**: Implements regularized least-squares optimization with physical constraints (non-negativity, smoothness) based on Jiang et al.
+- **Production Ready**: Designed as a lightweight, header-only compatible library suitable for integration into ISP tuning tools or offline calibration utilities.
 
-### 1. Build
+## Supported Algorithms
+
+CamSpec employs a flexible factory pattern via `EstimatorType` to switch between optimization strategies.
+
+| Estimator Type | Status | Description | Use Case |
+| :--- | :--- | :--- | :--- |
+| **`JIANG_PCA`** | *In Progress* | Physics-based constrained optimization using PCA basis vectors (Jiang et al., 2013). | High-precision spectral recovery & scientific calibration. |
+| **`GRAY_WORLD`** | *Planned* | Statistical estimation assuming the average scene color is neutral. | Real-time AWB, computationally lightweight. |
+| **`GRAY_EDGE`** | *Planned* | Derivative-based estimation assuming average edge differences are neutral. | Scenes with uniform colored backgrounds. |
+| **`OFF_PLANCKIAN`** | *Planned* | Extended optimization for non-standard light sources (LED, Fluorescent) deviating from the daylight locus. | Modern indoor lighting environments. |
+
+## Getting Started
+
+### System Prerequisites
+- CMake 3.15+
+- C++17 compliant compiler (GCC, Clang, MSVC)
+- OpenCV (Image processing)
+
+### External Modules
+The following libraries are included in the `external/` directory (added via `git submodule`):
+- **Eigen** for linear algebra & optimization
+- **tinyDNG** for DNG file loading
+
+*Note: Please clone this repository with `--recursive` to fetch submodules.*
+
+### Build Instructions
+
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
+mkdir build
+cd build
+cmake ..
+cmake --build . --config Release
 ```
 
-### 2. Calibrate
-Calculate a profile from a DNG containing a ColorChecker:
-```bash
-# Launches interactive corner picker
-camspec calibrate --input ../raw/IMG_0001.DNG --profile-out ../profiles/IMG_0001_D65.txt
+### Usage Example
+
+```cpp
+#include "camspec/pipeline.hpp"
+// #include "camspec/estimators/jiang.hpp" // (Planned API Structure)
+
+int main() {
+    // 1. Configure the pipeline with a specific estimator
+    // auto estimator = std::make_unique<camspec::JiangEstimator>();
+    // camspec::Pipeline pipeline(std::move(estimator));
+
+    camspec::Pipeline pipeline; // Current default initialization
+
+    // 2. Process input raw image
+    auto result = pipeline.process("path/to/raw_image.dng");
+
+    if (result) {
+        result->save("profile.json");
+        std::cout << "Profile recovered successfully.\n";
+    }
+
+    return 0;
+}
 ```
 
-### 3. Apply
-Apply the profile to correct other images from the same shoot:
-```bash
-camspec apply --input ../raw/IMG_0002.DNG --profile ../profiles/IMG_0001_D65.txt --output ../raw/IMG_0002_corrected.tif
-```
+## Roadmap
 
-## TODO
-
-The goal is to fully port the authors' original Matlab implementation to C++, with additional features if possible.
-
-1.  **Spectral Sensitivity Recovery**: Implement PCA-based estimation of Camera Spectral Sensitivity (CSS) from a single image.
-2.  **Illuminant Estimation**: Add CCT optimization to estimate unknown daylight spectra.
-3.  **Database Integration**: Incorporate the PCA basis from the [Camera Spectral Sensitivity Database](https://www.gujinwei.org/research/camspec/).
+* **Algorithm Expansion**: Finalize the base `JIANG_PCA` estimator and implement statistical estimators (`GRAY_WORLD`, `GRAY_EDGE`).
+* **Off-Planckian Support**: Research and develop specialized estimators for non-standard light sources (LED, Fluorescent).
+* **CLI Tool**: Provide a standalone command-line interface for batch processing and chart extraction.
+* **ISP Integration**: Optimize for integration into real-time image signal processing pipelines.

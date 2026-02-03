@@ -25,7 +25,11 @@ find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV_DIR: ${OpenCV_DIR}")
 message(STATUS "OpenCV_LIBS: ${OpenCV_LIBS}")
 message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
-find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+# Use local Eigen submodule
+set(EIGEN_BUILD_DOC OFF CACHE BOOL "Disable Eigen docs" FORCE)
+set(EIGEN_BUILD_TESTING OFF CACHE BOOL "Disable Eigen tests" FORCE)
+set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "Disable Eigen pkgconfig" FORCE)
+add_subdirectory(external/eigen)
 
 add_library(camspec_lib
     src/io.cpp
