@@ -12,3 +12,6 @@ raw/*
 .vscode/
 .vs/
 *.user
+
+# Reference scripts
+reference/
