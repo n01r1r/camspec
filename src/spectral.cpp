@@ -79,5 +79,25 @@ namespace css::spectral
 
         return sens;
     }
+
+    void saveSpectralSensitivityCsv(const std::string& path, const SpectralSensitivity& sens)
+    {
+        std::ofstream out(path);
+        if (!out)
+        {
+            throw std::runtime_error("Failed to open spectral CSV for writing: " + path);
+        }
+        
+        // Header
+        out << "wavelength_nm,R,G,B\n";
+        
+        for (const auto& sample : sens.samples)
+        {
+            out << sample.wavelengthNm << ","
+                << sample.rgbResponse.x() << ","
+                << sample.rgbResponse.y() << ","
+                << sample.rgbResponse.z() << "\n";
+        }
+    }
 } // namespace css::spectral
 

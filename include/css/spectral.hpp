@@ -26,5 +26,11 @@ namespace css::spectral
      */
     SpectralSensitivity loadSpectralSensitivityCsv(const std::string& path,
                                                    const std::string& cameraName = "");
+
+    /**
+     * Save camera spectral sensitivity to a CSV file.
+     * Format: wavelength_nm,R,G,B
+     */
+    void saveSpectralSensitivityCsv(const std::string& path, const SpectralSensitivity& sens);
 } // namespace css::spectral
 

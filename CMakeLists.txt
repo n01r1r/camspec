@@ -16,9 +16,9 @@ else()
 endif()
 
 # Set OpenCV directory - clear cache if you moved OpenCV
-set(OpenCV_DIR "C:/opencv-build" CACHE PATH "OpenCV config directory" FORCE)
+set(OpenCV_DIR "/usr/lib/x86_64-linux-gnu/cmake/opencv4" CACHE PATH "OpenCV config directory" FORCE)
 
-# Find OpenCV - it should locate OpenCVConfig.cmake in C:/opencv-build
+# Find OpenCV - it should locate OpenCVConfig.cmake
 find_package(OpenCV REQUIRED)
 
 # Print OpenCV info for debugging
@@ -39,6 +39,9 @@ add_library(camspec_lib
     src/spectral.cpp
     src/profile.cpp
     src/pipeline.cpp
+    src/daylight.cpp
+    src/priors.cpp
+    src/jiang.cpp
 )
 
 target_include_directories(camspec_lib

@@ -9,7 +9,12 @@
 #include "css/chart.hpp"
 #include "css/io.hpp"
 #include "css/pipeline.hpp"
+
 #include "css/profile.hpp"
+// New headers
+#include "css/priors.hpp"
+#include "css/jiang.hpp"
+#include "css/spectral.hpp"
 
 namespace fs = std::filesystem;
 
@@ -30,6 +35,7 @@ namespace
                   << "                          Patch 19 (bottom-left), Patch 24 (bottom-right).\n"
                   << "\n"
                   << "  camspec apply --input img.dng --profile prof.txt --output out.tif\n"
+                  << "  camspec recover-css --input chart.dng --output css.csv [--assets assets.yaml] [--corners ...]\n"
                   << std::endl;
     }
 
@@ -225,6 +231,104 @@ namespace
         std::cout << "Applied profile and wrote " << outputPath << std::endl;
         return 0;
     }
+
+    int runRecoverCss(const std::vector<std::string>& args)
+    {
+        std::string inputPath;
+        std::string outputPath;
+        std::string assetsPath = findDataFile("assets.yaml");
+        css::chart::ChartConfig chartCfg;
+        bool haveCorners = false;
+
+        for (size_t i = 0; i < args.size(); ++i)
+        {
+            const auto& a = args[i];
+            auto next = [&](const char* opt) -> std::string {
+                if (i + 1 >= args.size()) throw std::runtime_error(std::string("Missing value for ") + opt);
+                return args[++i];
+            };
+
+            if (a == "--input") inputPath = next("--input");
+            else if (a == "--output") outputPath = next("--output");
+            else if (a == "--assets") assetsPath = next("--assets");
+            else if (a == "--corners")
+            {
+                std::string val = next("--corners");
+                std::vector<float> c;
+                std::string token;
+                std::stringstream ss(val);
+                while(std::getline(ss, token, ',')) c.push_back(std::stof(token));
+                if (c.size() != 8) throw std::runtime_error("Expected 8 coords for corners");
+                chartCfg.topLeft = {c[0], c[1]};
+                chartCfg.topRight = {c[2], c[3]};
+                chartCfg.bottomRight = {c[4], c[5]};
+                chartCfg.bottomLeft = {c[6], c[7]};
+                haveCorners = true;
+            }
+        }
+
+        if (inputPath.empty() || outputPath.empty())
+        {
+            throw std::runtime_error("recover-css: missing --input or --output");
+        }
+
+        // 1. Load Priors
+        std::cout << "Loading priors from " << assetsPath << std::endl;
+        auto priors = css::priors::loadPriorsFromYaml(assetsPath);
+
+        // 2. Load Image
+        std::cout << "Loading DNG: " << inputPath << std::endl;
+        cv::Mat img = css::io::loadDngAsLinearRgb(inputPath);
+        std::cout << "Image loaded: " << img.cols << "x" << img.rows << std::endl;
+
+        // 3. Get Corners
+        if (!haveCorners)
+        {
+             std::cout << "No corners provided, launching interactive corner picker..." << std::endl;
+             chartCfg = css::chart::pickCornersInteractively(img);
+        }
+
+        // 4. Extract Patches
+        std::cout << "Extracting patches..." << std::endl;
+        auto samples = css::chart::sampleChartPatches(img, chartCfg);
+        
+        // Convert to Vector3f
+        std::vector<Eigen::Vector3f> rgbPatches;
+        rgbPatches.reserve(samples.size());
+        for(const auto& s : samples)
+        {
+            // sampleChartPatches returns meanBgr as (Ch0, Ch1, Ch2)
+            // loadDngAsLinearRgb returns RGB image (Ch0=R) where R is channel 0
+            // So meanBgr is actually (R, G, B).
+            rgbPatches.emplace_back(s.meanBgr[0], s.meanBgr[1], s.meanBgr[2]);
+        }
+
+        // 5. Solve
+        std::cout << "Running Jiang Estimator..." << std::endl;
+        css::jiang::JiangEstimator estimator(priors);
+        auto result = estimator.solve(rgbPatches);
+
+        std::cout << "Optimization Complete:\n"
+                  << "  Estimated CCT: " << result.estimatedCct << " K\n"
+                  << "  RMS Error:     " << result.rmsError << "\n";
+
+        // 6. Save
+        css::spectral::SpectralSensitivity sens;
+        sens.cameraName = "Recovered";
+        // Convert result.css (33x3) to samples. Wavelengths are 400 + 10*i
+        for(int i=0; i < result.css.rows(); ++i)
+        {
+            css::spectral::SpectralSample s;
+            s.wavelengthNm = 400.0f + 10.0f * i;
+            s.rgbResponse = result.css.row(i);
+            sens.samples.push_back(s);
+        }
+        
+        css::spectral::saveSpectralSensitivityCsv(outputPath, sens);
+        std::cout << "Saved CSS to " << outputPath << std::endl;
+
+        return 0;
+    }
 } // namespace
 
 int main(int argc, char** argv)
@@ -247,23 +351,24 @@ int main(int argc, char** argv)
     std::cout << "Command: " << cmd << std::endl;
     
     auto args = argsFrom(argc, argv, 2);
-    std::cout << "Number of arguments: " << args.size() << std::endl;
+    // std::cout << "Number of arguments: " << args.size() << std::endl;
 
     try
     {
         if (cmd == "calibrate")
         {
             std::cout << "Running calibrate command..." << std::endl;
-            int result = runCalibrate(args);
-            std::cout << "Calibrate command completed with code: " << result << std::endl;
-            return result;
+            return runCalibrate(args);
         }
         if (cmd == "apply")
         {
             std::cout << "Running apply command..." << std::endl;
-            int result = runApply(args);
-            std::cout << "Apply command completed with code: " << result << std::endl;
-            return result;
+            return runApply(args);
+        }
+        if (cmd == "recover-css")
+        {
+            std::cout << "Running recover-css command..." << std::endl;
+            return runRecoverCss(args);
         }
 
         std::cout << "Unknown command: " << cmd << std::endl;
@@ -283,4 +388,3 @@ int main(int argc, char** argv)
         return 1;
     }
 }
-
